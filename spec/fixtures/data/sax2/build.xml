@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<project name="sax2" default="jar" basedir=".">
+
+   <property name="src" value="src"/>
+   <property name="classes" value="classes"/>
+   <property name="jarfile" value="sax2.jar"/>
+   <property name="docs" value="docs"/>
+   <property name="javadoc" value="${docs}/javadoc"/>
+   <property name="version" value="sax2r3"/>
+   <property name="work" value="${version}"/>
+   <property name="zipfile" value="${version}.zip"/>
+
+   <target name="init">
+      <tstamp/>
+   </target>
+
+   <target name="prepare" depends="init">
+      <mkdir dir="${classes}"/>
+      <mkdir dir="${javadoc}"/>
+   </target>
+
+   <target name="compile" depends="prepare">
+      <javac srcdir="${src}" destdir="${classes}"/>
+   </target>
+
+   <target name="jar" depends="compile">
+      <jar jarfile="${jarfile}" basedir="${classes}"/>
+   </target>
+
+   <target name="javadoc" depends="prepare">
+      <javadoc sourcepath="${src}"
+               destdir="${javadoc}"
+               version="yes">
+         <package name="org.xml.sax"/>
+         <package name="org.xml.sax.ext"/>
+         <package name="org.xml.sax.helpers"/>
+      </javadoc>
+   </target>
+
+   <target name="dist" depends="jar,javadoc">
+      <delete dir="${work}"/>
+      <mkdir dir="${work}"/>
+      <copy todir="${work}">
+         <fileset dir=".">
+            <include name="BUGS"/>
+            <include name="build.xml"/>
+            <include name="ChangeLog"/>
+            <include name="README"/>
+            <include name="${jarfile}"/>
+         </fileset>
+         <fileset dir="${src}" excludes="**/Makefile"/>
+         <fileset dir="${classes}"/>
+         <fileset dir="${docs}"/>
+         <fileset dir="${javadoc}"/>
+      </copy>
+      <zip zipfile="${zipfile}"
+           basedir="."
+           includes="${work}/**"/>
+      <delete dir="${work}"/>
+   </target>
+
+   <target name="clean" depends="init">
+      <delete dir="${classes}"/>
+      <delete dir="${javadoc}"/>
+      <delete file="${jarfile}"/>
+   </target>
+
+</project>

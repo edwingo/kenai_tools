@@ -1,0 +1,139 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require "bundler/setup"
+
+$LOAD_PATH << File.dirname(__FILE__) + '/../lib'
+require 'ostruct'
+require 'optparse'
+require 'highline/import'
+require 'kenai_tools'
+
+PROGRAM = File.basename(__FILE__)
+
+# Array of command info. Keys are
+# :name = command line name
+# :call = name of method to call instead of :name, if specified
+# :result = method produces a result
+# :login = method requires authentication
+# :core = core, i.e. main command
+COMMANDS = [{:name => :ping, :result => true, :core => true},
+  {:name => :login, :call => :ping, :login => true, :result => true, :core => true},
+  {:name => :pull, :core => true},
+  {:name => :push, :login => true, :core => true},
+  {:name => :exist?, :result => true},
+  {:name => :entry_type, :result => true},
+  {:name => :mkdir, :login => true},
+  {:name => :rmdir, :login => true, :result => nil},
+  {:name => :rm, :login => true},
+  {:name => :rm_r, :login => true},
+  {:name => :delete_feature, :login => true},
+  {:name => :get_or_create, :login => true, :result => true},
+  {:name => :downloads_name, :result => true},
+  {:name => :downloads_feature, :result => true},
+  {:name => :ls, :result => true}]
+
+options = OpenStruct.new
+@opts = OptionParser.new do |opts|
+  opts.banner = "Usage: #{PROGRAM} [options] COMMAND [args] ..."
+
+  def wrap(s, width = 78)
+    s.gsub(/(.{1,#{width}})(\s+|\Z)/, "\\1\n")
+  end
+
+  str = COMMANDS.select { |info| info[:core] }.map { |info| info[:name] }.join(', ')
+  opts.separator "Main commands: #{wrap(str)}"
+  str = COMMANDS.reject { |info| info[:core] }.map { |info| info[:name] }.join(', ')
+  opts.separator "Other commands: #{wrap(str)}"
+  opts.separator "Note: Unix OS is recommended as some commands fail on Windows"
+  opts.separator "Examples:"
+  opts.separator "  #{PROGRAM} -r kenai.com,my-project pull / my-project-downloads"
+  opts.separator "  #{PROGRAM} -r java.net,my-project push dist/ /version-3.1"
+  opts.separator "  #{PROGRAM} -r java.net,my-project push toolkit-1.2.3.jar /"
+  opts.separator "  #{PROGRAM} -r java.net,glassfish login"
+  opts.separator "  #{PROGRAM} -r java.net,my-project rm /toolkit-1.2.3.jar"
+  opts.separator "  #{PROGRAM} -r java.net,my-project rm_r /version-3.1"
+  opts.separator ""
+  opts.separator "Specific options:"
+
+  def to_url(host_or_url)
+    host_or_url =~ %r{^http(s?)://} ? host_or_url : "https://#{host_or_url}/"
+  end
+
+  opts.on("-r", "--remote ENDPOINT_SPEC", "Remote endpoint SITE,PROJECT,[DOWNLOADS_NAME]",
+    "  SITE may be simply HOST or http(s)?://HOST:PORT") do |v|
+    host, project, downloads_name = v.split(',')
+    options.remote_valid = host && project
+    options.host_url = to_url(host)
+    options.project = project
+    options.downloads_name = downloads_name
+  end
+
+  opts.on("-p", "--password-file FILE", "Read username/password (nl-separated) from FILE") do |v|
+    options.password_file = v
+  end
+
+  opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+    options.verbose = v
+  end
+
+  opts.on("-t", "--timeout SECS", "Timeout in seconds") do |v|
+    options.timeout = v
+  end
+
+  opts.on("--cloak-password PASSWORD", "Cloaking password") do |v|
+    options.cloak_password = v
+  end
+
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
+end
+
+def usage
+  puts @opts
+  exit 1
+end
+
+begin
+  @opts.parse!
+rescue
+  usage
+end
+
+usage unless command = ARGV.shift and
+  cmd_info = COMMANDS.find { |info| info[:name] == command.to_sym } and
+  options.remote_valid
+
+def get_credentials(options, dlc_opts)
+  user, password = nil
+  if options.password_file
+    File.open(options.password_file) do |f|
+      user, password = f.read.split
+    end
+  else
+    say "Please enter your login credentials for #{options.host_url}"
+    user = ask('Username: ')
+    password = ask('Password: ') { |q| q.echo = '*' }
+  end
+  if user
+    dlc_opts[:user] = user
+    dlc_opts[:password] = password
+  end
+end
+
+dlc_opts = {:downloads_name => options.downloads_name}
+if cmd_info[:login]
+  get_credentials(options, dlc_opts)
+end
+dlc_opts[:timeout] = options.timeout if options.timeout
+dlc_opts[:cloak_password] = options.cloak_password if options.cloak_password
+dlc_opts[:log] = $stderr if options.verbose
+dlclient = DownloadsClient.new(options.host_url, options.project, dlc_opts)
+
+method_name = cmd_info[:call] ? cmd_info[:call] : cmd_info[:name]
+result = dlclient.send(method_name, *ARGV)
+if cmd_info[:result]
+  puts String === result ? result : result.inspect
+end

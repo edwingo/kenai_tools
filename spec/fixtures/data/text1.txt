@@ -1,0 +1,4 @@
+The files in this directory are used for test data.
+
+Hi there! This is a file with some text in it. This is a sentence. This is
+another sentence.

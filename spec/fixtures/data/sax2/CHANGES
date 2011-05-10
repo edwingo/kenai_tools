@@ -1,0 +1,245 @@
+SAX2: Changes -*-Outline-*-
+
+(For more details, see the ChangeLog in this directory.)
+
+* Changes from SAX 2.0.2 prerelease 2 to SAX 2.0.2 final (sax2r3)
+
+[none]
+
+
+* Changes from SAX 2.0.2 prerelease 1 to prerelease2 (SAX2r3-pre2)
+
+- remove JavaDoc for an exception that isn't thrown in Namespace
+  support
+
+- fix some mismatched @param tags
+
+- fix a broken JavaDoc link
+
+- reformat some JavaDoc
+
+
+* Changes from SAX 2.0.1 (SAX2r2) to SAX 2.0.2 (SAX2r3) prerelease 1
+
+- removed the docs/ directory, which had fallen out of sync; the
+  changes are now in this file, and information on features and
+  properties is in src/org/xml/sax/package.html
+
+- DeclHandler.externalEntityDecl now requires the parser to return the
+  absolute system identifier, for consistency with
+  DTDHandler.unparsedEntityDecl: this may cause some incompatibilities
+
+- the use-entity-resolver2 core feature is now read-write with a
+  default value of true
+
+- src/org/xml/sax/package.html now clarifies read/write status of
+  properties and features
+
+- the xmlns-uris feature uses "xmlns" for the local part of the
+  attribute declaring a default Namespace
+
+- add a read-only feature to check for XML 1.1 support
+
+- add a read-only string property to return the version number of the
+  document being parsed
+
+- add a feature to request Unicode normalization checking (false by
+  default) 
+
+- specify that error() should be used to report normalization problems
+
+- explicitly note that endDocument() might not be called after a fatal
+  error
+
+- allow getEncoding() and getXMLVersion() to return null if
+  information is not available.
+
+
+* Changes from SAX 2.0 to SAX 2.0 r2 prerelease
+
+- Added simple test program src/SAXTest.java
+
+- Synchronized static methods in XMLReaderFactory for thread
+  safety.
+
+- Fixed bug in ParserAdapter that reported an incorrect error when
+  an attribute using a Namespace prefix appeared before the Namespace
+  declaration.
+
+- Fixed bugs in AttributesImpl that caused infinite loops or
+  prevented removing attributes.
+
+- Specified that InputSource.getSystemId should return null (not an
+  empty string) when no system ID is available.
+
+- Modified DefaultHandler.resolveEntity to throw IOException, as in
+  the interface specification.
+
+- Added default constructors to SAXException,
+  SAXNotRecognizedException, and SAXNotSupportedException.
+
+
+* Changes from SAX 2.0prerelease to SAX 2.0
+
+- Documented the fact that parse() and event handlers are
+  synchronous.
+
+- Documented the fact that xml: prefix never has
+  start/endPrefixMapping events.
+
+
+* Changes from SAX 2.0beta2 to SAX 2.0prerelease
+
+- If the org.xml.sax.driver property is not specified but the SAX
+  org.xml.sax.parser property is specified,
+  XMLReaderFactory.createXMLReader() will attempt to create an XML1
+  Parser and then wrap it in a ParserAdapter.
+
+- DefaultHandler now throws a SAXException for its notationDecl and
+  unparsedEntityDecl methods, so that they can be subclassed properly.
+
+- Bug fixed in AttributesImpl; last attribute can now be removed.
+
+- Added setAttributes method AttributesImpl to simplify reusing an
+  object.
+
+- SAXParseException now allows a null locator argument in its
+  constructors.
+
+- Specified that the ContentHandler skippedEntity method will have an
+  entity name of "[dtd]" for the external DTD subset.
+
+- Specified that the ContentHandler processingInstruction method will
+  exclude whitespace between the target and data.
+
+- In NamespaceSupport, setting the "" prefix to "" removes any default
+  mapping, and changed getPrefix, getPrefixes so that they will not
+  return the default prefix.
+
+- In Attributes, renamed getRawName to getQName.  Likewise, in
+  AttributesImpl, renamed setRawName to setQName.
+
+- Removed the org.xml.sax.ext package into a separate distribution,
+  SAX2-ext.  The DeclHandler and LexicalHandler classes are no longer
+  part of the core SAX2 distribution.
+
+- Added docs/quick-start.html
+
+- Modified XMLReaderAdapter, ParserAdapter, and XMLFilterImpl so that
+  parse(String) actually invokes parse(InputSource): this way, only
+  parse(InputSource) needs to be overridden in subclasses.
+
+- Added getPrefix(String) and getPrefixes(String) methods to
+  NamespaceSupport to look up currently-mapped prefixes.
+
+
+* Changes from SAX 2.0beta to SAX 2.0beta2
+
+- Corrected "raw-names" to "namespace-prefixes" throughout.
+
+- Removed a JDK 1.2 dependency in
+  org.xml.sax.helpers.NamespaceSupport.
+
+- Fixed org.xml.sax.helpers.ParserAdapter so that the object can be
+  reused after a previous parse has thrown an exception.
+
+- Added org.xml.sax.helpers.XMLReaderFactory.
+
+- Documented limitations of start/endEntity in
+  org.xml.sax.ext.LexicalHandler, and added documentation that
+  LexicalHandler applies to the whole document and that all events
+  must appear between start/endDocument (including start/endDTD).
+
+- org.xml.sax.helpers.ParserAdapter  and
+  org.xml.sax.helpers.XMLReaderAdapter now have a default constructors
+  that use the "org.xml.sax.parser" and "org.xml.sax.driver"
+  properties to locate the embedded SAX1 and SAX2 drivers
+  respectively.
+
+
+* Changes from SAX 1.0 to SAX 2.0beta
+
+** API Changes
+
+The following interfaces and classes have been deprecated, and will
+be removed from a future version of SAX; they should be used only for
+interaction with SAX1 drivers or applications:
+
+- org.xml.sax.Parser
+
+- org.xml.sax.DocumentHandler
+
+- org.xml.sax.AttributeList
+
+- org.xml.sax.HandlerBase
+
+- org.xml.sax.helpers.ParserFactory
+
+- org.xml.sax.helpers.AttributeListImpl
+
+
+The following interfaces and classes have been added to SAX2:
+
+
+- org.xml.sax.XMLReader (replaces Parser)
+
+- org.xml.sax.XMLFilter
+
+- org.xml.sax.ContentHandler (replaces DocumentHandler)
+
+- org.xml.sax.Attributes (replaces AttributeList)
+
+- org.xml.sax.SAXNotSupportedException
+
+- org.xml.sax.SAXNotRecognizedException
+
+- org.xml.sax.helpers.AttributesImpl (replaces AttributeListImpl)
+
+- org.xml.sax.helpers.NamespaceSupport
+
+- org.xml.sax.helpers.XMLFilterImpl
+
+- org.xml.sax.helpers.ParserAdapter
+
+- org.xml.sax.helpers.XMLReaderAdapter
+
+- org.xml.sax.helpers.DefaultHandler (replaces HandlerBase)
+
+- org.xml.sax.ext.LexicalHandler (since removed)
+
+- org.xml.sax.ext.DeclHandler (since removed)
+
+SAX2 contains complete Namespace support, which is available by
+default from any XMLReader.  An XML reader can also optionally supply
+raw XML qnames.  See SAX2: Namespaces for more details.
+
+An XML reader is fully configurable: it is possible to attempt to
+query or change the current value of any feature or property.
+Features and properties are identified by fully-qualified URIs, and
+parties are free to invent their own names for new extensions.  See
+SAX2: Features and Properties for more details.
+
+The ContentHandler and Attributes interfaces are similar to the
+deprecated DocumentHandler and AttributeList interfaces, but they add
+support for Namespace-related information.  ContentHandler also adds a
+callback for skipped entities, and Attributes adds the ability to look
+up an attribute's index by name.
+
+The ParserAdapter class makes a SAX1 Parser behave as a SAX2
+XMLReader.  The XMLReaderAdapter class makes a SAX2 XML reader behave
+as a SAX1 parser.  These two classes should ease the transition from
+SAX1 to SAX2 by allowing SAX1 drivers and clients to co-exist with
+SAX2 drivers and clients in the same application.
+
+** Bug Fixes
+
+SAXException:
+ Overrode java.lang.Object.toString so that an embedded exception
+ will give a proper String representation for debugging.
+
+ParserFactory:
+  Added missing closing comment so that private constructor is not
+ commented out.
+
+
+[end]
