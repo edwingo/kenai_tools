@@ -2,10 +2,11 @@
 
 ## Description
 
-The kenai_tools gem provides tools to access sites that are hosted on Kenai
-project hosting infrastructure. With the dlutil tool, project admins can
-manage downloads for a project. For example, they can perform bulk uploads
-and downloads of files.
+The kenai_tools gem provides command line tools to access web services for
+web sites that are hosted on the Kenai application platform. Currently,
+there is a dlutil tool that project admins can use to manage the downloads
+feature of a project. For example, they can perform bulk uploads and
+downloads of files to a site hosted on Kenai such as java.net.
 
 ## Installation
 
