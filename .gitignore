@@ -4,5 +4,5 @@ Gemfile.lock
 pkg/*
 
 # RubyMine per-user files http://devnet.jetbrains.net/docs/DOC-1192
-*/.idea/workspace.xml
-*/.idea/tasks.xml
+.idea/workspace.xml
+.idea/tasks.xml
