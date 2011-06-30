@@ -11,6 +11,21 @@ Gem::Specification.new do |s|
   s.homepage    = "http://kenai.com/projects/kenaiapis"
   s.summary     = %q{Tools for sites hosted on the Kenai platform. Use dlutil to upload and download files.}
   s.description = %q{Tools for sites such as java.net that are hosted on the Kenai platform. Use dlutil to upload and download files.}
+  s.post_install_message = %q{
+==============================================================================
+
+Thanks for installing kenai_tools. Run the following command for what to do
+next:
+
+  dlutil --help
+
+Some dlutil commands do not work on Windows so a unix-based OS is
+recommended.
+
+==============================================================================
+
+
+}
 
   s.rubyforge_project = "kenai_tools"
 
