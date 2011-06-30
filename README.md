@@ -10,11 +10,11 @@ downloads of files to a site hosted on Kenai such as java.net.
 
 ## Installation
 
-$ gem install kenai_tools-x.y.z.gem
+$ gem install kenai_tools
 
 or
 
-$ sudo gem install kenai_tools-x.y.z.gem
+$ sudo gem install kenai_tools
 
 ## Usage and documentation
 
