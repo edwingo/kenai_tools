@@ -9,8 +9,8 @@ Gem::Specification.new do |s|
   s.authors     = ["Edwin Goei", "Project Kenai Team"]
   s.email       = ["edwin.goei@oracle.com"]
   s.homepage    = "http://kenai.com/projects/kenaiapis"
-  s.summary     = %q{Kenai application management tools}
-  s.description = %q{Tools for sites hosted on the Kenai platform. Use dlutil to upload and download files.}
+  s.summary     = %q{Tools for sites hosted on the Kenai platform. Use dlutil to upload and download files.}
+  s.description = %q{Tools for sites such as java.net that are hosted on the Kenai platform. Use dlutil to upload and download files.}
 
   s.rubyforge_project = "kenai_tools"
 
