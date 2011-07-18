@@ -19,8 +19,8 @@ next:
 
   dlutil --help
 
-Some dlutil commands do not work on Windows so a unix-based OS is
-recommended.
+Warning: this tool is not yet supported on Windows. Please use a unix-based
+OS. For more info, see http://kenai.com/jira/browse/KENAI-2853.
 
 ==============================================================================
 
