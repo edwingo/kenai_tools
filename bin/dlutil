@@ -130,7 +130,7 @@ end
 dlc_opts[:timeout] = options.timeout if options.timeout
 dlc_opts[:cloak_password] = options.cloak_password if options.cloak_password
 dlc_opts[:log] = $stderr if options.verbose
-dlclient = DownloadsClient.new(options.host_url, options.project, dlc_opts)
+dlclient = KenaiTools::DownloadsClient.new(options.host_url, options.project, dlc_opts)
 
 method_name = cmd_info[:call] ? cmd_info[:call] : cmd_info[:name]
 result = dlclient.send(method_name, *ARGV)

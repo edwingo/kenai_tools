@@ -4,7 +4,7 @@ require "bundler/setup"
 require 'rest_client'
 require 'json'
 
-module KenaiDlutil
+module KenaiTools
   class KenaiClient
     DEFAULT_HOST = 'https://kenai.com/'
 

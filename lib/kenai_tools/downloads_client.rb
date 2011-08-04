@@ -4,7 +4,7 @@ require 'bundler/setup'
 require 'forwardable'
 require 'rest_client'
 
-module KenaiDlutil
+module KenaiTools
   # Path arguments to public methods of this API work with Pathname objects as well as Strings
   class DownloadsClient
     CONTENT_TYPE_KENAI_ENTRIES = "application/vnd.com.kenai.entries+json"

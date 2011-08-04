@@ -9,17 +9,17 @@ rescue
   fail("Check that a Rails kenai/junction2 development mode server is running at #{SITE}")
 end
 
-describe KenaiDlutil::DownloadsClient do
+describe KenaiTools::DownloadsClient do
   before :all do
     # Init downloads feature for test project oasis
-    dlclient = KenaiDlutil::DownloadsClient.new(SITE, "oasis", :downloads_name => "downloads")
+    dlclient = KenaiTools::DownloadsClient.new(SITE, "oasis", :downloads_name => "downloads")
     dlclient.authenticate("mehdi", "mehdi") unless dlclient.authenticated?
     dlclient.delete_feature('yes') if dlclient.ping
     dlclient.get_or_create
   end
 
   # Larger timeout used here to debug server-side code or handling a large amount of data
-  let(:dlclient) { KenaiDlutil::DownloadsClient.new(SITE, "oasis", :timeout => 36000) }
+  let(:dlclient) { KenaiTools::DownloadsClient.new(SITE, "oasis", :timeout => 36000) }
   let(:data) { Pathname.new(File.dirname(__FILE__) + '/fixtures/data') }
   let(:file1) { data + "text1.txt" }
 
@@ -57,17 +57,17 @@ describe KenaiDlutil::DownloadsClient do
     context "basic" do
       # Note: this test depend upon sample downloads data in the development DB
       it "should detect existence of a file" do
-        dlclient = KenaiDlutil::DownloadsClient.new(SITE, "glassfish")
+        dlclient = KenaiTools::DownloadsClient.new(SITE, "glassfish")
         dlclient.exist?("glassfishv4solaris.zip").should be_true
       end
 
       it "should detect non-existence of a file" do
-        dlclient = KenaiDlutil::DownloadsClient.new(SITE, "glassfish")
+        dlclient = KenaiTools::DownloadsClient.new(SITE, "glassfish")
         dlclient.exist?("non-existent-download.zip").should be_false
       end
 
       it "should return the entry_type of an entry" do
-        dlclient = KenaiDlutil::DownloadsClient.new(SITE, "glassfish")
+        dlclient = KenaiTools::DownloadsClient.new(SITE, "glassfish")
         dlclient.entry_type("glassfishv4solaris.zip").should == 'file'
       end
     end
@@ -220,22 +220,22 @@ describe KenaiDlutil::DownloadsClient do
     end
 
     it "should fail to ping a non-working service" do
-      down_dlclient = KenaiDlutil::DownloadsClient.new(SITE, "bad-project")
+      down_dlclient = KenaiTools::DownloadsClient.new(SITE, "bad-project")
       down_dlclient.ping.should be_false
     end
 
     it "should discover the name of a downloads feature if a project only has one" do
-      dlclient2 = KenaiDlutil::DownloadsClient.new(SITE, "oasis")
+      dlclient2 = KenaiTools::DownloadsClient.new(SITE, "oasis")
       dlclient2.downloads_name.should == 'downloads'
     end
 
     it "should discover the downloads feature if a project only has one" do
-      dlclient2 = KenaiDlutil::DownloadsClient.new(SITE, "oasis")
+      dlclient2 = KenaiTools::DownloadsClient.new(SITE, "oasis")
       dlclient2.downloads_feature['type'].should == 'downloads'
     end
 
     it "should delete a downloads feature" do
-      dlclient2 = KenaiDlutil::DownloadsClient.new(SITE, "openjdk")
+      dlclient2 = KenaiTools::DownloadsClient.new(SITE, "openjdk")
       dlclient2.authenticate("craigmcc", "craigmcc") unless dlclient2.authenticated?
       dlclient2.get_or_create
 
@@ -246,7 +246,7 @@ describe KenaiDlutil::DownloadsClient do
     end
 
     it "should create a downloads feature" do
-      dlclient2 = KenaiDlutil::DownloadsClient.new(SITE, "openjdk")
+      dlclient2 = KenaiTools::DownloadsClient.new(SITE, "openjdk")
       dlclient2.authenticate("craigmcc", "craigmcc") unless dlclient2.authenticated?
       dlclient2.delete_feature('yes') if dlclient2.ping
 
