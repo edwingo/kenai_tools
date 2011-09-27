@@ -156,7 +156,16 @@ module KenaiTools
       else
         remote_id = Pathname(remote_dir) + src.basename
         entry = {:content_data => File.new(src)}.merge(opts)
+        begin
         @kc[entry_api_path(remote_id)].put(:entry => entry)
+        rescue => ex
+          err_msg = "Error: unable to upload to target '#{remote_id}'"
+          if server_msg = extract_error_message(ex)
+            err_msg += ": #{server_msg}"
+          end
+          $stderr.puts err_msg
+          raise ex
+        end
       end
     end
 
@@ -223,6 +232,10 @@ module KenaiTools
     def get_cloaked_url(url)
       opts = @cloak_password ? {:user => "dont_care", :password => @cloak_password} : {}
       RestClient::Resource.new(url, opts).get
+    end
+
+    def extract_error_message(ex)
+      ex.response if ex.respond_to?(:response)
     end
   end
 end

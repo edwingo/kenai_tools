@@ -36,6 +36,7 @@ OS. For more info, see http://kenai.com/jira/browse/KENAI-2853.
 
   s.add_development_dependency("rspec", "~> 2.5")
   s.add_development_dependency("bundler", "~> 1.0")
+  s.add_development_dependency("gemcutter")
   s.add_dependency("rest-client", "~> 1.6")
   s.add_dependency("json", "~> 1.5")
   s.add_dependency("highline", "~> 1.6")
