@@ -46,10 +46,18 @@ module KenaiTools
       end
     end
 
+    def project_features(proj_name)
+      begin
+        fetch_all("projects/#{proj_name}/features", 'features')
+      rescue RestClient::ResourceNotFound
+        nil
+      end
+    end
+
     # collect all project hashes (scope may be :all, or all projects, or
     # :mine, for projects in which the current user has some role)
-    def projects(scope=:all)
-      fetch_all('projects', 'projects')
+    def projects(params = {})
+      fetch_all('projects', 'projects', params)
     end
 
     def my_projects
@@ -58,7 +66,7 @@ module KenaiTools
 
     # get wiki images for a project
     def wiki_images(project, on_page = nil)
-      fetch_all("projects/#{project}/features/wiki/images", 'images', on_page)
+      fetch_all("projects/#{project}/features/wiki/images", 'images', :page => on_page)
     end
 
     # get the wiki raw image data for an image
@@ -84,7 +92,7 @@ module KenaiTools
 
     # get wiki pages for a project
     def wiki_pages(project, on_page = nil)
-      fetch_all("projects/#{project}/features/wiki/pages", 'pages', on_page)
+      fetch_all("projects/#{project}/features/wiki/pages", 'pages', :page => on_page)
     end
 
     def wiki_page(proj_name, page_name)
@@ -142,23 +150,34 @@ module KenaiTools
 
     private
 
-    # +on_page+ means only on that particular page or all pages if nil
-    def fetch_all(initial_url, item_key, on_page = nil)
-      unless on_page
-        next_page = initial_url
+    # +opts+ are translated to URL params (see API docs):
+    # :page => on_page, means only on that particular page or all pages if nil
+    # :filter => 'all', means to also include private projects
+    def fetch_all(initial_url, item_key, opts = {})
+      params = query_params(opts)
+      url = initial_url + params
+
+      unless opts[:page]
+        next_page = url
         results = []
 
-        begin
+        loop do
           curr_page = JSON.parse(self[next_page].get)
           results += curr_page[item_key]
-          next_page = curr_page['next']
-        end until next_page.nil?
+          break unless curr_page['next']
+          next_page = curr_page['next'] + params
+        end
 
         results
       else
-        url = on_page ? initial_url + "?page=#{on_page}" : initial_url
         JSON.parse(self[url].get)[item_key]
       end
+    end
+
+    def query_params(opts)
+      params = opts.map { |k, v| "#{k}=#{v}" }
+      query = params.empty? ? "" : "?#{params.join('&')}"
+      query
     end
 
     def wiki_page_client(project, page)
