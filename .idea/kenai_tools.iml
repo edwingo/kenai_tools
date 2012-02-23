@@ -36,13 +36,13 @@
     <orderEntry type="library" scope="PROVIDED" name="mechanize (v2.1.1, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rspec-core (v2.5.2, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="unf (v0.0.4, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
-    <orderEntry type="library" scope="PROVIDED" name="unf_ext (v0.0.4, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="bundler (v1.0.12, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="unf_ext (v0.0.4, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="net-http-persistent (v2.5.1, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="nokogiri (v1.5.0, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="gemcutter (v0.7.0, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
-    <orderEntry type="library" scope="PROVIDED" name="highline (v1.6.11, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rspec-mocks (v2.5.0, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
+    <orderEntry type="library" scope="PROVIDED" name="highline (v1.6.11, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
     <orderEntry type="library" scope="PROVIDED" name="rest-client (v1.6.7, RVM: ruby-1.8.7-p302 [kenai_tools]) [gem]" level="application" />
   </component>
 </module>
