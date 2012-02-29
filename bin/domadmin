@@ -16,7 +16,12 @@ PROGRAM = File.basename(__FILE__)
 # :call = name of method to call instead of :name, if specified
 # :result = method produces a result, default is false
 # :authenticate = method requires authentication
+# :local = local processing only, remote host not used
 COMMANDS = [
+  {:name => :find_lists, :authenticate => true},
+  {:name => :filter_empty_and_created_before, :local => true},
+  {:name => :filter_archive_last_updated_before, :local => true},
+  {:name => :filter_missing_from_mlm, :local => true},
   {:name => :empty_lists, :call => :find_empty_lists, :authenticate => true},
   {:name => :missing_lists, :call => :find_missing_lists, :authenticate => true},
   {:name => :exec, :call => :execute, :authenticate => true},
@@ -36,16 +41,21 @@ options = OpenStruct.new
   opts.separator "Commands:"
   opts.separator "  ping"
   opts.separator "  login"
-  opts.separator "  empty_lists [start=1] [length=nil] [per_page=10] (writes YAML to stdout)"
+  opts.separator "  find_lists [start=1] [length=nil] [per_page=10] (writes YAML to stdout)"
+  opts.separator "  filter_empty_and_created_before LIST.yml ISO_DATE (writes YAML to stdout)"
+  opts.separator "  filter_archive_last_updated_before LIST.yml ISO_DATE (writes YAML to stdout)"
+  opts.separator "  filter_missing_in_mlm (writes YAML to stdout)"
   opts.separator "  exec SCRIPT.yml"
   opts.separator "Examples:"
   opts.separator "  #{PROGRAM} -r java.net ping"
   opts.separator "  #{PROGRAM} -r java.net login"
-  opts.separator "  #{PROGRAM} -r java.net -p pass.txt empty_lists > delete_lists.yml"
-  opts.separator "  #{PROGRAM} -r java.net -p pass.txt empty_lists 5 10 20 > delete_lists_5_10_20.yml"
-  opts.separator "  #{PROGRAM} -r java.net -p pass.txt exec delete_lists.yml"
-  opts.separator "  #{PROGRAM} -r java.net -p pass.txt exec create_lists.yml"
-  opts.separator "  #{PROGRAM} -r java.net -p pass.txt missing_lists > missing_lists.yml"
+  opts.separator "  #{PROGRAM} -r java.net find_lists > find_lists.yml"
+  opts.separator "  #{PROGRAM} -r java.net find_lists 5 10 20 > find_lists_5_10_20.yml"
+  opts.separator "  #{PROGRAM} filter_empty_and_created_before find_lists.yml 2011-11-01 > delete_lists.yml"
+  opts.separator "  #{PROGRAM} filter_archive_last_updated_before find_lists.yml 2010-06-01 > delete_lists.yml"
+  opts.separator "  #{PROGRAM} filter_missing_in_mlm find_lists.yml > delete_missing_lists.yml"
+  opts.separator "  #{PROGRAM} -r java.net exec delete_lists.yml"
+  opts.separator "  #{PROGRAM} -r java.net exec create_lists.yml"
   opts.separator ""
   opts.separator "Specific options:"
 
@@ -78,6 +88,10 @@ options = OpenStruct.new
     options.timeout = v
   end
 
+  opts.on("--cloak-password PASSWORD", "Cloaking password") do |v|
+    options.cloak_password = v
+  end
+
   opts.on_tail("-h", "--help", "Show this message") do
     puts opts
     exit
@@ -95,9 +109,9 @@ rescue
   usage
 end
 
-usage unless command = ARGV.shift and
-  cmd_info = COMMANDS.find { |info| info[:name] == command.to_sym } and
-  options.host_url
+usage unless command = ARGV.shift
+usage unless cmd_info = COMMANDS.find { |info| info[:name] == command.to_sym }
+usage if !cmd_info[:local] && !options.host_url
 
 def get_credentials(options, params)
   user, password = nil
@@ -117,6 +131,7 @@ params = {}
 params[:user], params[:password] = get_credentials(options, params) if cmd_info[:authenticate]
 params[:dry_run] = options.dry_run if options.dry_run
 params[:insecure] = options.insecure if options.insecure
+params[:cloak_password] = options.cloak_password if options.cloak_password
 params[:timeout] = options.timeout if options.timeout
 params[:log] = $stderr if options.verbose
 daclient = KenaiTools::DomainAdminClient.new(options.host_url, params)

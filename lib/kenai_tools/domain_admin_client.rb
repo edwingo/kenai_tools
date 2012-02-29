@@ -7,15 +7,15 @@ require 'mechanize'
 require 'logger'
 
 module KenaiTools
-  # Path arguments to public methods of this API work with Pathname objects as well as Strings
   class DomainAdminClient
+    SEPARATOR = :separator
     CREATE_LISTS = 'domain_admin_create_lists'
     DELETE_LISTS = 'domain_admin_delete_lists'
 
     extend Forwardable
     def_delegators :@kc, :authenticate, :authenticated?
 
-    attr_accessor :dry_run, :log
+    attr_accessor :dry_run, :log, :site
 
     def initialize(site, opts = {})
       @site = site
@@ -27,34 +27,48 @@ module KenaiTools
       @user, @password = opts[:user], opts[:password]
       @agent = Mechanize.new
       @agent.log = logger(opts[:log])
+      if @cloak_password = opts.delete(:cloak_password)
+        @agent.auth("", @cloak_password)
+      end
     end
 
     def ping
       @kc[].get
     end
 
-    def find_missing_lists(start = 1, length = nil, per_page = nil)
+    def find_lists(start = 1, length = nil, per_page = nil)
       start, length, per_page = parse_find_args(start, length, per_page)
-      emit_header(start, length, per_page)
-      projects_lists(start, length, per_page) { |proj_name, list_feature| list_archive_missing?(list_feature) }
+      emit_command_header(start, length, per_page)
+      projects_lists(start, length, per_page)
     end
 
-    def find_empty_lists(start = 1, length = nil, per_page = nil)
-      start, length, per_page = parse_find_args(start, length, per_page)
-      emit_header(start, length, per_page)
-      projects_lists(start, length, per_page) { |proj_name, list_feature| list_archive_empty?(proj_name, list_feature) }
+    def filter_empty_and_created_before(filepath, created_before)
+      created_before = parse_iso_date(created_before)
+      comment = "filter_empty_and_created_before #{filepath} #{created_before}"
+      filter(filepath, comment) { |l| l[:empty] && parse_iso_date(l[:created_at]) < created_before }
+    end
+
+    def filter_archive_last_updated_before(filepath, updated_before)
+      updated_before = parse_iso_date(updated_before)
+      comment = "filter_archive_last_updated_before #{filepath} #{updated_before}"
+      filter(filepath, comment) { |l| parse_iso_date(l[:archive_updated]) < updated_before }
+    end
+
+    def filter_missing_from_mlm(filepath)
+      comment = "filter_missing_from_mlm #{filepath}"
+      filter(filepath, comment) { |l| l[:missing_from_mlm] }
     end
 
     def execute(filepath, force = false)
       puts "Dry_run: no destructive operations will be executed..." if dry_run
       input = read_input(filepath)
-      command, @opts = parse_command(input)
-      data = parse_data(input)
+      command, @opts = parse_command_header(input, [])
+      projects = parse_project_data(input)
       case command
       when DELETE_LISTS
-        delete_lists(data)
+        delete_lists(projects)
       when CREATE_LISTS
-        create_lists(data)
+        create_lists(projects)
       else
         puts "Command '#{command}' is not valid"
       end
@@ -62,62 +76,92 @@ module KenaiTools
 
     private
 
+    def filter(in_file, comment, &block)
+      input = read_input(in_file)
+      output = []
+      parse_command_header(input, output)
+      emit_yaml(output)
+
+      filter_header = [{:comment => comment}]
+      emit_yaml(filter_header)
+
+      projects = parse_project_data(input)
+      results = []
+      projects.each do |proj|
+        lists = proj[:lists]
+        filtered = lists.select &block
+        unless filtered.empty?
+          results << output_project(filtered, proj)
+        end
+      end
+      emit_yaml(results)
+    end
+
     def read_input(filepath)
       result = []
       File.open(filepath) do |yf|
-        YAML.each_document(yf) do |ydoc|
+        YAML.load_documents(yf) do |ydoc|
           result += ydoc
         end
       end
       result
     end
 
-    def parse_command(input)
-      command = nil
+    def parse_command_header(input, output)
+      command, command_args = nil
       loop do
-        args = input.slice!(0)
-        unless args && Hash === args
-          raise ArgumentError, "Bad yaml input: expected hash array element but got: #{args.inspect}"
+        if input.empty?
+          raise ArgumentError, "Bad command header yaml syntax: expected hash array element with key '#{SEPARATOR.inspect}'"
         end
-        next if args.has_key?(:comment)
 
-        unless command = args.delete(:command)
-          raise ArgumentError, "Bad yaml input: expected hash array element with key ':command' but got: #{args.inspect}"
+        args = input.slice!(0)
+        output << args
+
+        unless args && Hash === args
+          raise ArgumentError, "Bad command header yaml syntax: expected hash array element but got: #{args.inspect}"
+        end
+
+        if args.has_key?(:comment)
+          next
+        elsif args.has_key?(SEPARATOR)
+          return command, command_args
+        elsif args.has_key?(:command)
+          command, command_args = args.delete(:command), args
         else
-          return [command, args]
+          raise ArgumentError, "Bad command header yaml syntax: unexpected hash array element: #{args.inspect}"
         end
       end
     end
 
-    def parse_data(input)
-      all_features = []
+    def parse_project_data(input)
+      all = []
       input.each do |item|
         next if Hash === item && item.has_key?(:comment)
 
         if Array === item
-          merged = {}
-          item.map { |e| merged.merge!(e) }
-          all_features << merged
+          # Assume that +item+ corresponds to a project array of hashes to be merged
+          all << item.inject { |h, e| h.merge!(e) }
         else
           raise ArgumentError, "Bad yaml input reading project data: unexpected object of type #{item.class}: #{item.inspect}"
         end
       end
-      all_features
+      all
     end
 
-    def create_lists(data)
-      data.each do |item|
-        project = item[:project]
-        if features = @kc.project_features(project)
-          item[:lists].each do |list_name|
+    def create_lists(projects)
+      projects.each do |proj|
+        proj_name = proj[:project]
+        if features = @kc.project_features(proj_name)
+          proj[:lists].each do |list|
+            list_name = list[:name]
             if feature = features.detect { |f| f['name'] == list_name}
-              puts "Feature with name='#{list_name}', service='#{feature['service']}' already exists for project='#{project}'. Skipping."
+              puts "Feature with name='#{list_name}', service='#{feature['service']}' already exists for project='#{proj_name}'. Skipping."
             else
-              create_list(project, list_name)
+              create_list(proj_name, list_name)
             end
           end
         else
-          puts "Project '#{project}' is not found. Skipping."
+          puts "Project '#{proj_name}' is not found. Skipping."
         end
       end
     end
@@ -138,27 +182,28 @@ module KenaiTools
       end
     end
 
-    def delete_lists(data)
-      data.each do |item|
-        project = item[:project]
-        if features = @kc.project_features(project)
-          item[:lists].each do |list_name|
+    def delete_lists(projects)
+      projects.each do |proj|
+        proj_name = proj[:project]
+        if features = @kc.project_features(proj_name)
+          proj[:lists].each do |list|
+            list_name = list[:name]
             if list_feature = features.detect { |f| f['type'] = 'lists' && f['name'] == list_name}
               unless @opts[:force]
-                if list_archive_empty?(project, list_feature)
-                  delete_list(project, list_name)
+                if list_archive_info(list_feature) == :empty
+                  delete_list(proj_name, list_name)
                 else
-                  puts "List for project='#{project}' list='#{list_name}' is not empty. Skipping."
+                  puts "List for project='#{proj_name}' list='#{list_name}' is not empty. Skipping."
                 end
               else
-                delete_list(project, list_name)
+                delete_list(proj_name, list_name)
               end
             else
-              puts "List for project='#{project}' list='#{list_name}' does not exist. Ignoring."
+              puts "List for project='#{proj_name}' list='#{list_name}' does not exist. Ignoring."
             end
           end
         else
-          puts "Project '#{project}' is not found. Skipping."
+          puts "Project '#{proj_name}' is not found. Skipping."
         end
       end
     end
@@ -168,7 +213,7 @@ module KenaiTools
         @agent.agent.http.verify_mode = OpenSSL::SSL::VERIFY_NONE if @insecure
         login_uri = "#{@site}/people/login"
         @agent.get(login_uri) do |page|
-          resp = page.form_with :action => login_uri do |form|
+          resp = page.form_with :action => login_uri, :method => "POST" do |form|
             form['authenticator[username]'] = @user
             form['authenticator[password]'] = @password
           end.click_button
@@ -185,27 +230,33 @@ module KenaiTools
       archive_url.sub!(/^https:/, 'http:') if convert_to_http # Hack to eliminate redirect
     end
 
-    def list_archive_missing?(list_feature)
-      archive_url = list_archive_url(list_feature)
-      ensure_webui_login
-      begin
-        @agent.head(archive_url)
-      rescue Mechanize::ResponseCodeError => ex
-        return true if ex.response_code == "404"
+    def last_message_date(p1)
+      @agent.click(p1.link_with(:text => 'Chronological')) do |p2|
+        ns = p2.search('div.listsArchive table.dataDisplay tr')
+        str = ns[-1].search('td[3]').first.content
+        Date.strptime(str, "%m/%d/%Y")
       end
-      false
     end
 
-    def list_archive_empty?(project, list_feature)
+    def list_archive_info(list_feature)
       archive_url = list_archive_url(list_feature)
       list_name = list_feature['name']
       ensure_webui_login
       begin
-        flash = @agent.get(archive_url).search("div.flash").first
-        flash && flash.content =~ /The mailing list #{list_name}@.* does not have any messages/
+        @agent.get(archive_url) do |page|
+          flash = page.search("div.flash").first
+          if flash && flash.content =~ /The mailing list #{list_name}@.* does not have any messages/
+            return :empty
+          else
+            last_message_date(page)
+          end
+        end
       rescue Mechanize::ResponseCodeError => ex
         if ex.response_code == "404"
-          puts "Warning: list for project='#{project}' list='#{list_name}' is missing from list service, assuming not empty."
+          # 2012-02-23 Assume list is missing from sympa MLM
+          # Code is dependent on current junction implementation that essentially forwards the 404 response
+          # from sympa to the client.
+          return :missing_from_mlm
         else
           raise ex
         end
@@ -218,6 +269,11 @@ module KenaiTools
       puts "done"
     end
 
+    # TODO here I am
+    def output_project(lists_out, proj)
+      [{:project => proj['name']}, {:parent => proj['parent']}, {:lists => lists_out}]
+    end
+
     def projects_lists_on_page(page, per_page = nil)
       result = []
       params = {:filter => 'domain_admin', :full => true, :page => page}
@@ -225,19 +281,32 @@ module KenaiTools
       projects = @kc.projects(params)
       return nil if projects.empty?
       projects.each do |proj|
+        lists_out = []
         list_features = proj['features'].select { |f| f['type'] == 'lists' }
-        list_names = list_features.select { |l| yield proj['name'], l }.map { |l| l['name'] }
-        result << [{:project => proj['name']}, {:parent => proj['parent']}, {:lists => list_names}] unless list_names.empty?
+        list_features.each do |l|
+          list = {:name => l['name'], :created_at => l['created_at'], :updated_at => l['updated_at']}
+          case info = list_archive_info(l)
+          when Date
+            list[:archive_updated] = info.to_s
+          when :missing_from_mlm
+            list[:missing_from_mlm] = true
+          when :empty
+            list[:empty] = true
+          end
+          lists_out << list
+        end
+
+        result << output_project(lists_out, proj) unless lists_out.empty?
       end
       result
     end
 
-    def projects_lists(start, length = nil, per_page = nil, &filter)
+    def projects_lists(start, length = nil, per_page = nil)
       limit = length ? start + length : nil
 
       page = start
       loop do
-        result = projects_lists_on_page(page, per_page, &filter)
+        result = projects_lists_on_page(page, per_page)
         break unless result
         result.insert(0, {:comment => "Begin page=#{page.inspect}"})
         emit_yaml(result)
@@ -246,15 +315,23 @@ module KenaiTools
       end
     end
 
-    def emit_header(start, length, per_page)
-      cmd1 = {:command => "#{DELETE_LISTS}"}.to_yaml[/:command.*/]
-      cmd2 = {:command => "#{CREATE_LISTS}"}.to_yaml[/:command.*/]
-      header = [{:comment => "This file is machine generated but can be manually edited."},
-        {:comment => "Remove quotes and delete prefix up to ':command' on a line to execute."},
-        "# #{cmd1}",
-        "# #{cmd2}",
+    def separator
+      {SEPARATOR => nil}
+    end
+
+    def emit_command_header(start, length, per_page)
+      header = [
+        {:comment => "This file is machine generated and is designed to be manually"},
+        {:comment => "edited. The format is a series of YAML documents with array"},
+        {:comment => "objects at the root of each document."},
+        {:comment => "Change the ':comment' prefix to ':command' on a following"},
+        {:comment => "line to execute the command via 'domadmin exec'."},
+        {:comment => "#{DELETE_LISTS}"},
+        {:comment => "#{CREATE_LISTS}"},
         {:comment => nil},
+        {:comment => "Site: #{site}"},
         {:comment => "Find arguments: start=#{start.inspect}, length=#{length.inspect}, per_page=#{per_page.inspect}"},
+        separator
       ]
       emit_yaml header
     end
@@ -270,6 +347,15 @@ module KenaiTools
 
     def parse_find_args(start, length, per_page)
       return to_int(start), to_int(length), to_int(per_page)
+    end
+
+    def parse_iso_date(str)
+      date_only = if has_time = str =~ /T/
+                    str[0...has_time]
+                  else
+                    str
+                  end
+      Date.strptime(date_only, "%Y-%m-%d")
     end
 
     def logger(io)
