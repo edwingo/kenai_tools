@@ -22,12 +22,12 @@ COMMANDS = [
   {:name => :filter_empty_and_created_before, :local => true},
   {:name => :filter_archive_last_updated_before, :local => true},
   {:name => :filter_missing_from_mlm, :local => true},
-  {:name => :empty_lists, :call => :find_empty_lists, :authenticate => true},
-  {:name => :missing_lists, :call => :find_missing_lists, :authenticate => true},
   {:name => :exec, :call => :execute, :authenticate => true},
   {:name => :ping, :result => true},
   {:name => :login, :call => :ping, :authenticate => true, :result => true},
 ]
+
+$terminal = HighLine.new($stdin, $stderr)
 
 options = OpenStruct.new
 @opts = OptionParser.new do |opts|

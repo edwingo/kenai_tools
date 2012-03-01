@@ -37,21 +37,22 @@ module KenaiTools
     end
 
     def find_lists(start = 1, length = nil, per_page = nil)
+      comments = ["Remote site: #{site}", "find_lists #{start} #{length} #{per_page}".strip]
       start, length, per_page = parse_find_args(start, length, per_page)
-      emit_command_header(start, length, per_page)
+      emit_command_header(comments)
       projects_lists(start, length, per_page)
     end
 
     def filter_empty_and_created_before(filepath, created_before)
       created_before = parse_iso_date(created_before)
       comment = "filter_empty_and_created_before #{filepath} #{created_before}"
-      filter(filepath, comment) { |l| l[:empty] && parse_iso_date(l[:created_at]) < created_before }
+      filter(filepath, comment) { |l| l[:empty] && l[:created_at] && parse_iso_date(l[:created_at]) < created_before }
     end
 
     def filter_archive_last_updated_before(filepath, updated_before)
       updated_before = parse_iso_date(updated_before)
       comment = "filter_archive_last_updated_before #{filepath} #{updated_before}"
-      filter(filepath, comment) { |l| parse_iso_date(l[:archive_updated]) < updated_before }
+      filter(filepath, comment) { |l| l[:archive_updated] && parse_iso_date(l[:archive_updated]) < updated_before }
     end
 
     def filter_missing_from_mlm(filepath)
@@ -69,8 +70,10 @@ module KenaiTools
         delete_lists(projects)
       when CREATE_LISTS
         create_lists(projects)
+      when nil
+        $stderr.puts "No command found in: #{filepath}"
       else
-        puts "Command '#{command}' is not valid"
+        puts "Command is not valid: #{command.inspect}"
       end
     end
 
@@ -90,9 +93,7 @@ module KenaiTools
       projects.each do |proj|
         lists = proj[:lists]
         filtered = lists.select &block
-        unless filtered.empty?
-          results << output_project(filtered, proj)
-        end
+        results << project_data(proj[:project], proj[:parent], filtered) unless filtered.empty?
       end
       emit_yaml(results)
     end
@@ -154,7 +155,9 @@ module KenaiTools
         if features = @kc.project_features(proj_name)
           proj[:lists].each do |list|
             list_name = list[:name]
-            if feature = features.detect { |f| f['name'] == list_name}
+            if ! list_name
+              next
+            elsif feature = features.detect { |f| f['name'] == list_name}
               puts "Feature with name='#{list_name}', service='#{feature['service']}' already exists for project='#{proj_name}'. Skipping."
             else
               create_list(proj_name, list_name)
@@ -190,10 +193,11 @@ module KenaiTools
             list_name = list[:name]
             if list_feature = features.detect { |f| f['type'] = 'lists' && f['name'] == list_name}
               unless @opts[:force]
-                if list_archive_info(list_feature) == :empty
+                info = list_archive_info(list_feature)
+                if [:empty, :missing_from_mlm].include?(info)
                   delete_list(proj_name, list_name)
                 else
-                  puts "List for project='#{proj_name}' list='#{list_name}' is not empty. Skipping."
+                  puts "List info for project='#{proj_name}' list='#{list_name}' is unexpected, got '#{info}'. Skipping."
                 end
               else
                 delete_list(proj_name, list_name)
@@ -231,11 +235,10 @@ module KenaiTools
     end
 
     def last_message_date(p1)
-      @agent.click(p1.link_with(:text => 'Chronological')) do |p2|
-        ns = p2.search('div.listsArchive table.dataDisplay tr')
-        str = ns[-1].search('td[3]').first.content
-        Date.strptime(str, "%m/%d/%Y")
-      end
+      p2 = @agent.click(p1.link_with(:text => 'Chronological'))
+      ns = p2.search('div.listsArchive table.dataDisplay tr')
+      str = ns[-1].search('td[3]').first.content
+      Date.strptime(str, "%m/%d/%Y")
     end
 
     def list_archive_info(list_feature)
@@ -248,7 +251,7 @@ module KenaiTools
           if flash && flash.content =~ /The mailing list #{list_name}@.* does not have any messages/
             return :empty
           else
-            last_message_date(page)
+            return last_message_date(page)
           end
         end
       rescue Mechanize::ResponseCodeError => ex
@@ -269,9 +272,8 @@ module KenaiTools
       puts "done"
     end
 
-    # TODO here I am
-    def output_project(lists_out, proj)
-      [{:project => proj['name']}, {:parent => proj['parent']}, {:lists => lists_out}]
+    def project_data(name, parent, lists)
+      [{:project => name}, {:parent => parent}, {:lists => lists}]
     end
 
     def projects_lists_on_page(page, per_page = nil)
@@ -296,7 +298,7 @@ module KenaiTools
           lists_out << list
         end
 
-        result << output_project(lists_out, proj) unless lists_out.empty?
+        result << project_data(proj['name'], proj['parent'], lists_out) unless lists_out.empty?
       end
       result
     end
@@ -319,7 +321,7 @@ module KenaiTools
       {SEPARATOR => nil}
     end
 
-    def emit_command_header(start, length, per_page)
+    def emit_command_header(comments)
       header = [
         {:comment => "This file is machine generated and is designed to be manually"},
         {:comment => "edited. The format is a series of YAML documents with array"},
@@ -329,10 +331,9 @@ module KenaiTools
         {:comment => "#{DELETE_LISTS}"},
         {:comment => "#{CREATE_LISTS}"},
         {:comment => nil},
-        {:comment => "Site: #{site}"},
-        {:comment => "Find arguments: start=#{start.inspect}, length=#{length.inspect}, per_page=#{per_page.inspect}"},
-        separator
       ]
+      header += comments.map { |str| {:comment => str}}
+      header << separator
       emit_yaml header
     end
 
