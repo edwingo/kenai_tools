@@ -8,7 +8,7 @@ require 'logger'
 
 module KenaiTools
   class DomainAdminClient
-    SEPARATOR = :separator
+    BEGIN_DATA = :begin_data
     MAX_TRIES = 3
     CREATE_LISTS = 'domain_admin_create_lists'
     DELETE_LISTS = 'domain_admin_delete_lists'
@@ -44,21 +44,26 @@ module KenaiTools
       projects_lists(start, length, per_page)
     end
 
-    def filter_empty_and_created_before(filepath, created_before)
+    def filter_empty_and_created_before(created_before, filepath)
       created_before = parse_iso_date(created_before)
-      comment = "filter_empty_and_created_before #{filepath} #{created_before}"
+      comment = "filter_empty_and_created_before #{created_before} #{filepath}"
       filter(filepath, comment) { |l| l[:empty] && l[:created_at] && parse_iso_date(l[:created_at]) < created_before }
     end
 
-    def filter_archive_last_updated_before(filepath, updated_before)
+    def filter_archive_last_updated_before(updated_before, filepath)
       updated_before = parse_iso_date(updated_before)
-      comment = "filter_archive_last_updated_before #{filepath} #{updated_before}"
+      comment = "filter_archive_last_updated_before #{updated_before} #{filepath}"
       filter(filepath, comment) { |l| l[:archive_updated] && parse_iso_date(l[:archive_updated]) < updated_before }
     end
 
     def filter_missing_from_mlm(filepath)
       comment = "filter_missing_from_mlm #{filepath}"
       filter(filepath, comment) { |l| l[:missing_from_mlm] }
+    end
+
+    def filter_not_named(name, filepath)
+      comment = "filter_not_named #{name} #{filepath}"
+      filter(filepath, comment) { |l| l[:name] != "#{name}" }
     end
 
     def execute(filepath, force = false)
@@ -90,7 +95,7 @@ module KenaiTools
       emit_yaml(filter_header)
 
       projects = parse_project_data(input)
-      results = []
+      results = [begin_data]
       projects.each do |proj|
         lists = proj[:lists]
         filtered = lists.select &block
@@ -113,25 +118,24 @@ module KenaiTools
       command, command_args = nil
       loop do
         if input.empty?
-          raise ArgumentError, "Bad command header yaml syntax: expected hash array element with key '#{SEPARATOR.inspect}'"
+          raise ArgumentError, "Bad command header yaml syntax: missing hash array element with key '#{BEGIN_DATA.inspect}'"
         end
 
         args = input.slice!(0)
-        output << args
-
         unless args && Hash === args
           raise ArgumentError, "Bad command header yaml syntax: expected hash array element but got: #{args.inspect}"
         end
 
         if args.has_key?(:comment)
-          next
-        elsif args.has_key?(SEPARATOR)
+          # No-op
+        elsif args.has_key?(BEGIN_DATA)
           return command, command_args
         elsif args.has_key?(:command)
           command, command_args = args.delete(:command), args
         else
           raise ArgumentError, "Bad command header yaml syntax: unexpected hash array element: #{args.inspect}"
         end
+        output << args
       end
     end
 
@@ -325,8 +329,8 @@ module KenaiTools
     end
 
     def projects_lists(start, length = nil, per_page = nil)
+      emit_yaml [begin_data]
       limit = length ? start + length : nil
-
       page = start
       loop do
         result = projects_lists_on_page(page, per_page)
@@ -338,8 +342,8 @@ module KenaiTools
       end
     end
 
-    def separator
-      {SEPARATOR => nil}
+    def begin_data
+      {BEGIN_DATA => nil}
     end
 
     def emit_command_header(comments)
@@ -354,7 +358,6 @@ module KenaiTools
         {:comment => nil},
       ]
       header += comments.map { |str| {:comment => str}}
-      header << separator
       emit_yaml header
     end
 
