@@ -9,6 +9,7 @@ require 'logger'
 module KenaiTools
   class DomainAdminClient
     SEPARATOR = :separator
+    MAX_TRIES = 3
     CREATE_LISTS = 'domain_admin_create_lists'
     DELETE_LISTS = 'domain_admin_delete_lists'
 
@@ -155,12 +156,12 @@ module KenaiTools
         if features = @kc.project_features(proj_name)
           proj[:lists].each do |list|
             list_name = list[:name]
-            if ! list_name
+            if !list_name
               next
-            elsif feature = features.detect { |f| f['name'] == list_name}
+            elsif feature = features.detect { |f| f['name'] == list_name }
               puts "Feature with name='#{list_name}', service='#{feature['service']}' already exists for project='#{proj_name}'. Skipping."
-            else
-              create_list(proj_name, list_name)
+            elsif !create_list(proj_name, list_name, MAX_TRIES)
+              puts "Failed to create mailing list with name='#{list_name}' for project='#{proj_name}' after #{MAX_TRIES} attempts."
             end
           end
         else
@@ -169,19 +170,39 @@ module KenaiTools
       end
     end
 
-    def create_list(project, list)
-      print "Creating list for project='#{project}' list='#{list}'... "
+    def create_list(proj_name, list_name, tries_remaining = 1)
+      return false if tries_remaining < 1
+
+      print "Creating list for project='#{proj_name}' list='#{list_name}' tries_remaining=#{tries_remaining}... "
+      if dry_run
+        print "done"
+        return true
+      end
+
       json = {:feature => {
-        :name => "#{list}",
+        :name => "#{list_name}",
         :service => "lists",
-        :display_name => "#{list.capitalize}",
-        :description => "#{list.capitalize}"}
+        :display_name => "#{list_name.capitalize} Mailing List"}
       }.to_json
-      unless dry_run
-        response = @kc["projects/#{project}/features"].post(json, :content_type => :json, :accept => :json)
-        puts response.code == 201 ? "done" : "failed"
+      response = @kc.create_project_feature(proj_name, json)
+      if response.code == 201 # Created
+        print "created_201, verifying MLM archive... "
+        if feature = @kc.project_feature(proj_name, list_name)
+          if list_archive_info(feature) == :missing_from_mlm
+            puts "missing from MLM, cleaning up before retrying..."
+            delete_list(proj_name, list_name)
+            return create_list(proj_name, list_name, tries_remaining - 1)
+          else
+            puts "done"
+            return true
+          end
+        else
+          puts "failed, API returned 201 but mailing list feature does not exist, aborting!"
+          return false
+        end
       else
-        puts "done"
+        puts "failed, API returned code=#{response.code}, aborting!"
+        return false
       end
     end
 
@@ -268,7 +289,7 @@ module KenaiTools
 
     def delete_list(project, list)
       print "Deleting list for project='#{project}' list='#{list}'... "
-      @kc["projects/#{project}/features/#{list}"].delete unless dry_run
+      @kc.delete_project_feature(project, list) unless dry_run
       puts "done"
     end
 

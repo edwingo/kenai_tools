@@ -54,6 +54,22 @@ module KenaiTools
       end
     end
 
+    def project_feature(proj_name, feature_name)
+      begin
+        JSON.parse(project_feature_client(proj_name, feature_name).get)
+      rescue RestClient::ResourceNotFound
+        nil
+      end
+    end
+
+    def create_project_feature(proj_name, feature_json)
+      self["projects/#{proj_name}/features"].post(feature_json, :content_type => :json, :accept => :json)
+    end
+
+    def delete_project_feature(proj_name, feature_name)
+      project_feature_client(proj_name, feature_name).delete
+    end
+
     # collect all project hashes (scope may be :all, or all projects, or
     # :mine, for projects in which the current user has some role)
     def projects(params = {})
@@ -182,6 +198,10 @@ module KenaiTools
 
     def wiki_page_client(project, page)
       self["projects/#{project}/features/wiki/pages/#{page}"]
+    end
+
+    def project_feature_client(proj_name, feature_name)
+      self["projects/#{proj_name}/features/#{feature_name}"]
     end
   end
 end
