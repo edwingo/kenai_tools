@@ -3,9 +3,7 @@
 Gemfile.lock
 pkg/*
 
-# Just ignore all rubymine files 2012-02-23
-.idea/*
-
-# RubyMine per-user files http://devnet.jetbrains.net/docs/DOC-1192
-.idea/workspace.xml
-.idea/tasks.xml
+# 2012-03-06 RubyMine: following the advice at
+# http://devnet.jetbrains.net/docs/DOC-1192 has problems so just ignore all
+# files for now
+.idea/
