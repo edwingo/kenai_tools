@@ -47,23 +47,32 @@ module KenaiTools
     def filter_empty_and_created_before(created_before, filepath)
       created_before = parse_iso_date(created_before)
       comment = "filter_empty_and_created_before #{created_before} #{filepath}"
-      filter(filepath, comment) { |l| l[:empty] && l[:created_at] && parse_iso_date(l[:created_at]) < created_before }
+      filter_lists(filepath, comment) { |l| l[:empty] && l[:created_at] && parse_iso_date(l[:created_at]) < created_before }
     end
 
     def filter_archive_last_updated_before(updated_before, filepath)
       updated_before = parse_iso_date(updated_before)
       comment = "filter_archive_last_updated_before #{updated_before} #{filepath}"
-      filter(filepath, comment) { |l| l[:archive_updated] && parse_iso_date(l[:archive_updated]) < updated_before }
+      filter_lists(filepath, comment) { |l| l[:archive_updated] && parse_iso_date(l[:archive_updated]) < updated_before }
     end
 
     def filter_missing_from_mlm(filepath)
       comment = "filter_missing_from_mlm #{filepath}"
-      filter(filepath, comment) { |l| l[:missing_from_mlm] }
+      filter_lists(filepath, comment) { |l| l[:missing_from_mlm] }
     end
 
     def filter_not_named(name, filepath)
       comment = "filter_not_named #{name} #{filepath}"
-      filter(filepath, comment) { |l| l[:name] != "#{name}" }
+      filter_lists(filepath, comment) { |l| l[:name] != "#{name}" }
+    end
+
+    def filter_out_issues(filepath)
+      comment = "filter_out_issues #{filepath}"
+      filter_projects(filepath, comment) do |pr, lists|
+        out = pr.clone
+        out[:lists] = lists.reject { |l| l[:name] == 'issues' } if pr[:issues].empty?
+        out
+      end
     end
 
     def execute(filepath, force = false)
@@ -85,7 +94,7 @@ module KenaiTools
 
     private
 
-    def filter(in_file, comment, &block)
+    def process_command_header(in_file, comment)
       input = read_input(in_file)
       output = []
       parse_command_header(input, output)
@@ -93,13 +102,32 @@ module KenaiTools
 
       filter_header = [{:comment => comment}]
       emit_yaml(filter_header)
+      input
+    end
+
+    def filter_projects(in_file, comment)
+      input = process_command_header(in_file, comment)
+
+      projects = parse_project_data(input)
+      results = [begin_data]
+      projects.each do |proj|
+        out_proj = yield proj, proj[:lists]
+        unless out_proj[:lists].empty?
+          results << project_data(out_proj[:project], out_proj[:parent], out_proj[:lists], out_proj[:issues], out_proj[:has_scm])
+        end
+      end
+      emit_yaml(results)
+    end
+
+    def filter_lists(in_file, comment, &block)
+      input = process_command_header(in_file, comment)
 
       projects = parse_project_data(input)
       results = [begin_data]
       projects.each do |proj|
         lists = proj[:lists]
         filtered = lists.select &block
-        results << project_data(proj[:project], proj[:parent], filtered) unless filtered.empty?
+        results << project_data(proj[:project], proj[:parent], filtered, proj[:issues], proj[:has_scm]) unless filtered.empty?
       end
       emit_yaml(results)
     end
@@ -297,8 +325,8 @@ module KenaiTools
       puts "done"
     end
 
-    def project_data(name, parent, lists)
-      [{:project => name}, {:parent => parent}, {:lists => lists}]
+    def project_data(name, parent, lists, issues, has_scm)
+      [{:project => name}, {:parent => parent}, {:lists => lists}, {:issues => issues}, {:has_scm => has_scm}]
     end
 
     def projects_lists_on_page(page, per_page = nil)
@@ -308,22 +336,29 @@ module KenaiTools
       projects = @kc.projects(params)
       return nil if projects.empty?
       projects.each do |proj|
-        lists_out = []
-        list_features = proj['features'].select { |f| f['type'] == 'lists' }
-        list_features.each do |l|
-          list = {:name => l['name'], :created_at => l['created_at'], :updated_at => l['updated_at']}
-          case info = list_archive_info(l)
-          when Date
-            list[:archive_updated] = info.to_s
-          when :missing_from_mlm
-            list[:missing_from_mlm] = true
-          when :empty
-            list[:empty] = true
+        out_lists = []
+        out_issues = []
+        has_scm = false
+        proj['features'].each do |f|
+          out_hash = {:name => f['name'], :created_at => f['created_at']}
+          case f['type']
+          when 'lists'
+            case info = list_archive_info(f)
+            when Date
+              out_hash[:archive_updated] = info.to_s
+            when :missing_from_mlm
+              out_hash[:missing_from_mlm] = true
+            when :empty
+              out_hash[:empty] = true
+            end
+            out_lists << out_hash
+          when 'issues'
+            out_issues << out_hash
+          when 'scm'
+            has_scm = true
           end
-          lists_out << list
         end
-
-        result << project_data(proj['name'], proj['parent'], lists_out) unless lists_out.empty?
+        result << project_data(proj['name'], proj['parent'], out_lists, out_issues, has_scm) unless out_lists.empty?
       end
       result
     end
