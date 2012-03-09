@@ -31,6 +31,7 @@ module KenaiTools
       if @cloak_password = opts.delete(:cloak_password)
         @agent.auth("", @cloak_password)
       end
+      $stdout.sync = true
     end
 
     def ping
@@ -70,7 +71,21 @@ module KenaiTools
       comment = "filter_out_issues #{filepath}"
       filter_projects(filepath, comment) do |pr, lists|
         out = pr.clone
-        out[:lists] = lists.reject { |l| l[:name] == 'issues' } if pr[:issues].empty?
+        out[:lists] = lists.reject { |l| l[:name] == 'issues' } unless pr[:issues].empty?
+        out
+      end
+    end
+
+    # Use this filter to create a missing 'issues' list for projects with issue trackers
+    def filter_in_issues(filepath)
+      comment = "filter_in_issues #{filepath}"
+      filter_projects(filepath, comment) do |pr, lists|
+        out = pr.clone
+        out[:lists] = if !pr[:issues].empty? and !lists.detect { |l| l[:name] == 'issues' }
+                        [{:name => 'issues'}]
+                      else
+                        []
+                      end
         out
       end
     end
@@ -216,7 +231,13 @@ module KenaiTools
         :service => "lists",
         :display_name => "#{list_name.capitalize} Mailing List"}
       }.to_json
-      response = @kc.create_project_feature(proj_name, json)
+      begin
+        response = @kc.create_project_feature(proj_name, json)
+      rescue RestClient::Exception => ex
+        puts "failed, caught exception http_code=#{ex.http_code}, message=#{ex.message}"
+        return create_list(proj_name, list_name, tries_remaining - 1)
+      end
+
       if response.code == 201 # Created
         print "created_201, verifying MLM archive... "
         if feature = @kc.project_feature(proj_name, list_name)
@@ -398,7 +419,6 @@ module KenaiTools
 
     def emit_yaml(val)
       puts val.to_yaml
-      $stdout.flush
     end
 
     def to_int(val)

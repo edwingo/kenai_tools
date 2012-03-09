@@ -24,6 +24,7 @@ COMMANDS = [
   {:name => :filter_missing_from_mlm, :local => true},
   {:name => :filter_not_named, :local => true},
   {:name => :filter_out_issues, :local => true},
+  {:name => :filter_in_issues, :local => true},
   {:name => :exec, :call => :execute, :authenticate => true},
   {:name => :ping, :result => true},
   {:name => :login, :call => :ping, :authenticate => true, :result => true},
@@ -48,6 +49,7 @@ options = OpenStruct.new
   opts.separator "  filter_archive_last_updated_before ISO_DATE LIST.yml (writes YAML to stdout)"
   opts.separator "  filter_not_named NAME LIST.yml (writes YAML to stdout)"
   opts.separator "  filter_out_issues LIST.yml (writes YAML to stdout)"
+  opts.separator "  filter_in_issues LIST.yml (writes YAML to stdout)"
   opts.separator "  filter_missing_in_mlm (writes YAML to stdout)"
   opts.separator "  exec SCRIPT.yml"
   opts.separator "Filters can be chained. Edit final output to create SCRIPT.yml for 'exec' command."
@@ -60,6 +62,7 @@ options = OpenStruct.new
   opts.separator "  #{PROGRAM} filter_archive_last_updated_before 2010-06-01 find_lists.yml > filtered_lists.yml"
   opts.separator "  #{PROGRAM} filter_not_named issues filtered_lists.yml > delete_lists.yml"
   opts.separator "  #{PROGRAM} filter_out_issues filtered_lists.yml > delete_lists.yml"
+  opts.separator "  #{PROGRAM} filter_in_issues filtered_lists.yml > create_lists.yml"
   opts.separator "  #{PROGRAM} filter_missing_in_mlm find_lists.yml > delete_missing_lists.yml"
   opts.separator "  #{PROGRAM} -r java.net exec delete_lists.yml"
   opts.separator "  #{PROGRAM} -r java.net exec create_lists.yml"
