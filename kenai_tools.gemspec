@@ -40,5 +40,4 @@ OS. For more info, see http://kenai.com/jira/browse/KENAI-2853.
   s.add_dependency("rest-client", "~> 1.6")
   s.add_dependency("json", "~> 1.5")
   s.add_dependency("highline", "~> 1.6")
-  s.add_dependency("mechanize", "~> 2.1")
 end
