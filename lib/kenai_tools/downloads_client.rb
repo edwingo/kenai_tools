@@ -1,5 +1,4 @@
 require 'rubygems'
-require 'bundler/setup'
 
 require 'forwardable'
 require 'rest_client'
