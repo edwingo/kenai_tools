@@ -2,6 +2,7 @@ require 'rubygems'
 
 require 'rest_client'
 require 'json'
+require 'net/http/post/multipart'
 
 module KenaiTools
   class KenaiClient
@@ -12,6 +13,7 @@ module KenaiTools
     attr_reader :host, :user, :password
 
     def initialize(host = nil, opts = {})
+      RestClient.log = opts[:log] if opts[:log]
       @host = host || DEFAULT_HOST
       @opts = opts
     end
@@ -81,7 +83,9 @@ module KenaiTools
 
     # get wiki images for a project
     def wiki_images(project, on_page = nil)
-      fetch_all("projects/#{project}/features/wiki/images", 'images', :page => on_page)
+      opts = {}
+      opts[:page] = on_page if on_page
+      fetch_all("projects/#{project}/features/wiki/images", 'images', opts)
     end
 
     # get the wiki raw image data for an image
@@ -89,25 +93,33 @@ module KenaiTools
       RestClient.get(image['image_url'], :accept => image['image_content_type'])
     end
 
-    # hash has the following keys
-    # +:uploaded_data+ = raw image data, required only if creating a new image
+    # opts has the following keys
+    # +:image_data+ = raw image data, required only if creating a new image
+    # +:content_type+ = image_data content-type
+    # +:filename+ = filename for multipart
+    #
     # +:comments+ = optional comments for the image
     # throws IOError unless create or update was successful
-    def create_or_update_wiki_image(proj_name, image_filename, hash)
+    def create_or_update_wiki_image(proj_name, opts)
       req_params = {}
-      if data = hash[:uploaded_data]
-        upload_io = UploadIO.new(StringIO.new(data), "image/png", image_filename)
-        req_params["image[uploaded_data]"] = upload_io
+      if data = opts[:image_data]
+        content_type = opts[:content_type]
+        filename = opts[:filename]
+        req_params["image[uploaded_data]"] = UploadIO.new(StringIO.new(data), content_type, filename)
       end
-      if comments = hash[:comments]
+      if comments = opts[:comments]
         req_params["image[comments]"] = comments
       end
       return false if req_params.empty?
+
+      self["projects/#{proj_name}/features/wiki/images/#{filename}"].put(req_params)
     end
 
     # get wiki pages for a project
     def wiki_pages(project, on_page = nil)
-      fetch_all("projects/#{project}/features/wiki/pages", 'pages', :page => on_page)
+      opts = {}
+      opts[:page] = on_page if on_page
+      fetch_all("projects/#{project}/features/wiki/pages", 'pages', opts)
     end
 
     def wiki_page(proj_name, page_name)

@@ -1,0 +1,197 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+
+$LOAD_PATH << File.dirname(__FILE__) + '/../lib'
+require 'optparse'
+require 'highline/import'
+require 'kenai_tools'
+
+$terminal = HighLine.new($stdin, $stderr)
+
+def fail(message, exit_code = 2)
+  $stderr.puts(message)
+  exit exit_code
+end
+
+def check_project(kc, url, proj_name)
+  fail "Unable to find project '#{proj_name}' at #{url}" unless kc.project(proj_name)
+end
+
+def to_url(host_or_url)
+  host_or_url =~ %r{^http(s?)://} ? host_or_url : "https://#{host_or_url}/"
+end
+
+def copy_images(src_client, src_proj, dst_client, dst_proj)
+  if on_page = @options[:on_page]
+    images = src_client.wiki_images(src_proj, on_page)
+    puts "Found #{images.size} source wiki images on page #{on_page}"
+  else
+    images = src_client.wiki_images(src_proj)
+    puts "Found #{images.size} source wiki images"
+  end
+
+  images.each do |image|
+    filename = image['filename']
+    print "Copying wiki image #{filename}..."
+    image_data = src_client.wiki_image_data(image)
+    unless @options[:dry_run]
+      tries = 0
+      begin
+        tries += 1
+        dst_client.create_or_update_wiki_image(dst_proj, :image_data => image_data,
+          :content_type => image['image_content_type'], :filename => filename,
+          :comments => image['comments'])
+      rescue IOError => ex
+        if (tries < 4)
+          print "  retrying..."
+          sleep(2**tries) # Wait for 2, 4, or 8 secs
+          retry
+        end
+      end
+    end
+    puts "done"
+  end
+end
+
+def copy_pages(src_client, src_proj, dst_client, dst_proj)
+  if on_page = @options[:on_page]
+    pages = src_client.wiki_pages(src_proj, on_page)
+    puts "Found #{pages.size} source wiki pages on page #{on_page}"
+  else
+    pages = src_client.wiki_pages(src_proj)
+    puts "Found #{pages.size} source wiki pages"
+  end
+
+  pages.each do |page|
+    page_name = page['name']
+    print "Copying page #{page_name}..."
+    contents = src_client.wiki_page(src_proj, page_name)['text']
+    unless @options[:dry_run]
+      dst_client.edit_wiki_page(dst_proj, page_name) { |s| contents }
+    end
+    puts "done"
+  end
+end
+
+def usage
+  puts @opts
+  exit 1
+end
+
+def parse_endpoint_spec(spec, type)
+  usage unless spec
+  host, project = spec.split(',')
+  fail "Bad #{type}_ENDPOINT: PROJECT not specified" unless project
+  [host, project]
+end
+
+def get_credentials(option, url)
+  user, password = nil
+  if option[:prompt]
+    say "Please enter your login credentials for #{url}"
+    user = ask('Username: ')
+    password = ask('Password: ') { |q| q.echo = '*' }
+  else
+    File.open(option[:file]) do |f|
+      user, password = f.read.split
+    end
+  end
+  [user, password]
+end
+
+def main
+  program = File.basename(__FILE__)
+  @options = {}
+  @opts = OptionParser.new do |opts|
+    opts.banner = "Usage: #{program} [options] SRC_ENDPOINT DST_ENDPOINT"
+    opts.separator "  where ENDPOINT is HOST,PROJECT"
+    opts.separator "Note: unix-like OS is recommended as this tool may fail on Windows"
+    opts.separator "Examples:"
+    opts.separator "  #{program} kenai.com,my-project java.net,my-project"
+    opts.separator "  #{program} --text-only kenai.com,my-project java.net,my-project"
+    opts.separator ""
+    opts.separator "Specific options:"
+
+    opts.on("-p", "--password FILE", "Read DST nl-separated username/password from file") do |v|
+      @options[:password] = {:prompt => !v, :file => v}
+    end
+
+    opts.on("-s", "--source-password [FILE]", "Prompt or read SRC username/password from file") do |v|
+      @options[:source_password] = {:prompt => !v, :file => v}
+    end
+
+    opts.on("--images-only", "Copy images only") do |v|
+      @options[:images_only] = v
+    end
+
+    opts.on("--text-only", "Copy text only") do |v|
+      @options[:text_only] = v
+    end
+
+    opts.on("-n", "--dry-run", "No writes, dry run only") do |v|
+      @options[:dry_run] = v
+    end
+
+    opts.on("-v", "--[no-]verbose", "Run verbosely") do |v|
+      @options[:verbose] = v
+    end
+
+    opts.on_tail("--on-page API_PAGE", "Copy only text or images on API_PAGE") do |v|
+      @options[:on_page] = v
+    end
+
+    opts.on_tail("-h", "--help", "Show this message") do
+      puts opts
+      exit
+    end
+  end
+
+  begin
+    @opts.parse!
+  rescue Exception => ex
+    fail ex
+  end
+
+  kc_opts = {}
+  kc_opts[:log] = $stderr if @options[:verbose]
+
+  if @options[:dry_run]
+    puts "Dry run, no actual writes will be performed..."
+  end
+
+  src_host, src_proj = parse_endpoint_spec(ARGV.shift, "SRC")
+  dst_host, dst_proj = parse_endpoint_spec(ARGV.shift, "DST")
+
+  unless src_host && src_proj
+    usage
+  end
+  src_url = to_url(src_host)
+
+  unless dst_host && dst_proj
+    usage
+  end
+  dst_url = to_url(dst_host)
+
+  dst_client = KenaiTools::KenaiClient.new(dst_url, kc_opts)
+  user, password = get_credentials(@options[:password], dst_url)
+  result = dst_client.authenticate(user, password)
+  fail "Invalid DST_ENDPOINT credentials for #{dst_url}" unless result
+  check_project(dst_client, dst_url, dst_proj)
+
+  src_client = KenaiTools::KenaiClient.new(src_url, kc_opts)
+  user, password = get_credentials(@options[:source_password], src_url)
+  result = src_client.authenticate(user, password)
+  fail "Invalid SRC_ENDPOINT credentials #{src_url}" unless result
+  check_project(src_client, src_url, src_proj)
+
+  unless @options[:dry_run]
+    copy_images(src_client, src_proj, dst_client, dst_proj) unless @options[:text_only]
+    copy_pages(src_client, src_proj, dst_client, dst_proj) unless @options[:images_only]
+  end
+end
+
+begin
+  main
+rescue SystemExit
+end
