@@ -141,9 +141,13 @@ def main
       @options[:on_page] = v
     end
 
-    opts.on_tail("-h", "--help", "Show this message") do
-      puts opts
+    opts.on_tail("--version", "Show kenai_tools gem version") do |v|
+      puts KenaiTools::VERSION
       exit
+    end
+
+    opts.on_tail("-h", "--help", "Show this message") do
+      usage
     end
   end
 
